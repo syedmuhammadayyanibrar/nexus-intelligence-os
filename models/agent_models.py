@@ -42,7 +42,7 @@ class ReportSection(BaseModel):
 
 class FinalReport(BaseModel):
     title:str
-    summary:str = Field(max_length=500)
+    summary:str = Field(max_length=3000)
     sections : List[ReportSection] = Field(min_length=1)
     insights : List[Insights]
     overall_confidence : float = Field(ge=0,le=1)

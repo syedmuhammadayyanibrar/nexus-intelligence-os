@@ -45,7 +45,7 @@ async def run_critic(state: AgentState)->dict:
     - All scores must be floats between 0.0 and 1.0
     - passed must be true only if ALL three scores are above 0.6
     - passed must be false if ANY score is 0.6 or below
-    - feedback must be one specific sentence about the weakest area, not generic praise
+    - feedback must be one specific sentence about the weakest area, not generic praise it shold be thorough to understand the outcomes of research about the question
 
     Return this exact shape:
     {
@@ -53,7 +53,7 @@ async def run_critic(state: AgentState)->dict:
     "evidence_score": 0.85,
     "coherence_score": 0.80,
     "coverage_score": 0.75,
-    "feedback": "The report lacks coverage of long-term longitudinal studies."
+    "feedback": "necessary feedback"
     }"""
     user_message = f"Evaluate this research report:\n\n{formatted}"
 

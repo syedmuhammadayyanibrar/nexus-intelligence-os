@@ -123,29 +123,30 @@ async def code_agent(state: AgentState)->dict:
 
 
 # Quick subprocess test — run directly, not through the full pipeline
-async def test_subprocess():
-    from models.agent_models import CodeResults
-    import time
-    
-    code = "data = [2.3, 4.1, 3.8, 2.9]\nprint(f'Average: {sum(data)/len(data):.2f} hours')"
-    
-    start = time.time()
-    proc = subprocess.run(
-        ["python", "-c", code],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
-    elapsed = int((time.time() - start) * 1000)
-    result = CodeResults(
-        code=code,
-        stdout=proc.stdout,
-        stderr=proc.stderr,
-        success=proc.returncode == 0,
-        execution_time_ms=elapsed
-    )
-    print(f"Success: {result.success}")
-    print(f"Output: {result.stdout}")
-    print(f"Time: {result.execution_time_ms}ms")
+if __name__ == "__main__":
+    async def test_subprocess():
+        from models.agent_models import CodeResults
+        import time
+        
+        code = "data = [2.3, 4.1, 3.8, 2.9]\nprint(f'Average: {sum(data)/len(data):.2f} hours')"
+        
+        start = time.time()
+        proc = subprocess.run(
+            ["python", "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        elapsed = int((time.time() - start) * 1000)
+        result = CodeResults(
+            code=code,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+            success=proc.returncode == 0,
+            execution_time_ms=elapsed
+        )
+        print(f"Success: {result.success}")
+        print(f"Output: {result.stdout}")
+        print(f"Time: {result.execution_time_ms}ms")
 
-asyncio.run(test_subprocess())
+    asyncio.run(test_subprocess())
