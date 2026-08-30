@@ -13,7 +13,7 @@ import time
 from models.agent_models import CodeResults
 
 load_dotenv()
-client = AsyncGroq()
+client = AsyncGroq(timeout=180.0)
 
 
 _SYSTEM_PROMPT = """You are a research data agent. Examine the insights and decide whether Python
@@ -49,8 +49,8 @@ async def code_agent(state: AgentState) -> dict:
         return {"code_result": None, "status": "extracting"}
 
     insights_text = ""
-    for i, insight in enumerate(insights):
-        insights_text += f"Insight {i+1}: {insight.claim}\n"
+    for i, insight in enumerate(insights[:15]):
+        insights_text += f"Insight {i+1}: {insight.claim[:400]}\\n"
         insights_text += f"Confidence: {insight.confidence}\n\n"
 
     # generate temp path BEFORE calling LLM so it can hardcode it
@@ -67,37 +67,40 @@ async def code_agent(state: AgentState) -> dict:
         f"If yes, write the actual Python code to run."
     )
 
-    try:
-        response = await client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            max_tokens=1200,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-        )
+    code = None
+    for attempt in range(3):
+        try:
+            response = await client.chat.completions.create(
+                model="qwen/qwen3.8-27b",
+                max_tokens=600,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message},
+                ],
+            )
 
-        raw_text = response.choices[0].message.content.strip()
-        # strip markdown fences if present
-        if raw_text.startswith("```"):
-            parts = raw_text.split("```")
-            raw_text = parts[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
-            raw_text = raw_text.strip()
+            raw_text = response.choices[0].message.content.strip()
+            import re
+            match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+            if match:
+                raw_text = match.group(0)
 
-        parsed = json.loads(raw_text)
+            import json_repair`n            parsed = json_repair.loads(raw_text)
 
-        if not parsed.get("needs_code"):
-            return {"code_result": None, "status": "extracting"}
+            if not parsed.get("needs_code"):
+                return {"code_result": None, "status": "extracting"}
 
-        code = parsed["code"]
+            code = parsed["code"]
+            break
 
-    except RateLimitError:
-        await asyncio.sleep(15)
-        return {"status": "failed", "error": "Rate limit hit, try again"}
-    except (json.JSONDecodeError, KeyError) as e:
-        return {"status": "failed", "error": f"LLM response error: {str(e)}"}
+        except RateLimitError:
+            await asyncio.sleep(65)
+            if attempt == 2:
+                return {"status": "failed", "error": "Rate limit hit, try again"}
+        except (json.JSONDecodeError, KeyError) as e:
+            await asyncio.sleep(2)
+            if attempt == 2:
+                return {"status": "failed", "error": f"LLM response error: {str(e)}"}
 
     # run the generated code in a subprocess
     start = time.time()

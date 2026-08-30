@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 
 load_dotenv()
-client = AsyncGroq()
+client = AsyncGroq(timeout=180.0)
 async def run_extractor(state:AgentState)->dict:
     all_result = state["search_results"]
 
@@ -55,8 +55,8 @@ async def run_extractor(state:AgentState)->dict:
         while(i<3):
             try:
                 response  =await client.chat.completions.create(
-                    model="openai/gpt-oss-20b",
-                        max_tokens=1000,
+                    model="qwen/qwen3.8-27b",
+                        max_tokens=800,
                         messages=[
                             {"role": "system", "content": prompt},
                             {"role": "user", "content": user_message}
@@ -64,13 +64,13 @@ async def run_extractor(state:AgentState)->dict:
                 )
                 text = response.choices[0].message.content.strip()
                 print(f"Extractor raw response:\n{text}\n")
-                if text.startswith("```"):
-                    parts = text.split("```")
-                    text = parts[1]
-                    if text.startswith("json"):
-                        text = text[4:]
-                    text = text.strip()
-                raw_list = json.loads(text)
+                import re
+                match = re.search(r'\[.*\]', text, re.DOTALL)
+                if match:
+                    text = match.group(0)
+                else:
+                    raise json.JSONDecodeError("No JSON array found", text, 0)
+                import json_repair`n                raw_list = json_repair.loads(text)
                 insights = [Insights.model_validate(item) for item in raw_list]
                 return insights
             except RateLimitError:

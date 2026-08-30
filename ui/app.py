@@ -167,9 +167,9 @@ def render_contradiction_graph(col, payload):
         import matplotlib.pyplot as plt
         import matplotlib.patches as mpatches
         import io
-    except ImportError:
+    except Exception as e:
         with col:
-            st.warning("Install networkx + matplotlib to see the contradiction graph.")
+            st.warning(f"Graph rendering failed: {str(e)}")
         return
 
     involved = set()
@@ -358,7 +358,7 @@ elif run_btn and query:
         job_id = resp.json()["job_id"]
         url = f"http://localhost:8000/research/{job_id}/stream"
 
-        with requests.get(url, stream=True, timeout=600) as r:
+        with requests.get(url, stream=True, timeout=1800) as r:
             r.raise_for_status()
             for line in r.iter_lines(decode_unicode=True):
                 if not line or not line.startswith("data:"):

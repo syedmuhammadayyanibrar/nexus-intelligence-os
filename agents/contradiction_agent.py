@@ -15,7 +15,7 @@ from models.state import AgentState
 from models.agent_models import ContradictionEdge
 
 load_dotenv()
-client = AsyncGroq()
+client = AsyncGroq(timeout=180.0)
 
 # Max insight pairs to check to avoid O_2 explosion
 MAX_PAIRS = 20
@@ -51,7 +51,7 @@ async def _check_pair(ida: int, claim_a: str, idb: int, claim_b: str) -> Contrad
     for attempt in range(3):
         try:
             resp = await client.chat.completions.create(
-                model="openai/gpt-oss-20b",
+                model="qwen/qwen3.8-27b",
                 max_tokens=300,
                 messages=[
                     {"role": "system", "content": _SYSTEM},
@@ -59,13 +59,8 @@ async def _check_pair(ida: int, claim_a: str, idb: int, claim_b: str) -> Contrad
                 ],
             )
             raw = resp.choices[0].message.content.strip()
-            if raw.startswith("```"):
-                parts = raw.split("```")
-                raw = parts[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
-            d = json.loads(raw)
+            import re`n            match = re.search(r"\{.*\}", raw, re.DOTALL)`n            if match:`n                raw = match.group(0)
+            import json_repair`n            d = json_repair.loads(raw)
             if not d.get("contradicts"):
                 return None
             edge = ContradictionEdge(
@@ -105,6 +100,7 @@ async def run_contradiction_agent(state: AgentState) -> dict:
             # fill the contradictions field on both Insights objects
             insights[ida].contradictions.append(insights[idb].claim)
             insights[idb].contradictions.append(insights[ida].claim)
+        await asyncio.sleep(2)
 
     return {
         "insights": insights,          # pass back mutated insights

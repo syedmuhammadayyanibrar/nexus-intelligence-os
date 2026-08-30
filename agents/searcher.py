@@ -64,7 +64,7 @@ async def run_searcher(state:AgentState)->dict:
                     SearchResults(
                         url=raw.get("url"),
                         title=raw.get("title", "Untitled"),
-                        snippet=raw.get("content", ""), 
+                        snippet=raw.get("content", "")[:800], 
                         relevance=raw.get("score", 0.0),
                         source_type="web"
                     )

@@ -12,7 +12,7 @@ import asyncio
 from pydantic import ValidationError
 
 load_dotenv()
-client = AsyncGroq()
+client = AsyncGroq(timeout=180.0)
 
 
 async def run_critic(state: AgentState)->dict:
@@ -32,7 +32,7 @@ async def run_critic(state: AgentState)->dict:
     formatted += f"Summary: {report.summary}\n\n"
     for section in report.sections:
         formatted += f"Section: {section.heading}\n"
-        formatted += f"{section.body}\n\n"
+        formatted += f"{section.body[:1000]}\\n\\n"
 
     prompt = """You are a research quality critic. Evaluate the research report provided and return only a valid JSON object with no markdown.
 
@@ -61,8 +61,8 @@ async def run_critic(state: AgentState)->dict:
     while (i<3):
         try:
             response = await client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                max_tokens=1000,
+                model="qwen/qwen3.8-27b",
+                max_tokens=500,
                 messages=[
                             {"role": "system", "content": prompt},
                             {"role": "user", "content": user_message}
@@ -70,13 +70,12 @@ async def run_critic(state: AgentState)->dict:
             )
             text = response.choices[0].message.content
             text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
+            import re
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                text = match.group(0)
 
-            raw = json.loads(text)
+            import json_repair`n            raw = json_repair.loads(text)
             validated_critique = CritiqueResult.model_validate(raw)
             if validated_critique.passed:
                 return {

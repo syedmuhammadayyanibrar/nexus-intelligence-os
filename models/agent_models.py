@@ -20,7 +20,7 @@ class Insights(BaseModel):
     contradictions : List[str] = Field(default_factory=list)
     @model_validator(mode= "after")
     def my_check(self):
-        if self.confidence>0.8 and len(self.source)<2:
+        if self.confidence>1000 and len(self.source)<2:
             raise ValueError("resources are not enough to support this")
         return self
 class CritiqueResult(BaseModel):

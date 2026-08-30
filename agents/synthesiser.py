@@ -12,7 +12,7 @@ import json
 from pydantic import ValidationError
 
 load_dotenv()
-client = AsyncGroq()
+client = AsyncGroq(timeout=180.0)
 
 async def run_synthesiser(state: AgentState) -> dict:
     check_insight = state.get('insights', [])
@@ -24,8 +24,8 @@ async def run_synthesiser(state: AgentState) -> dict:
     original_query = state['original_query']
 
     formatted = ""
-    for i, insight in enumerate(check_insight):
-        formatted += f"Insight {i+1}: {insight.claim}\n"
+    for i, insight in enumerate(check_insight[:15]):
+        formatted += f"Insight {i+1}: {insight.claim[:400]}\\n"
         formatted += f"Confidence: {insight.confidence}\n"
         formatted += f"Sources: {', '.join(insight.source)}\n\n"
 
@@ -95,8 +95,8 @@ STRICT RULES:
     while i < 3:
         try:
             response = await client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                max_tokens=6000,
+                model="qwen/qwen3.8-27b",
+                max_tokens=2500,
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": user_message}
@@ -104,18 +104,20 @@ STRICT RULES:
             )
             text = response.choices[0].message.content
             text = text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
+            import re
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                text = match.group(0)
 
-            raw = json.loads(text)
+            import json_repair
+            raw = json_repair.loads(text)
+            if not isinstance(raw, dict):
+                raise ValueError("Parsed JSON is not a dictionary")
             raw["insights"] = [insight.model_dump() for insight in state["insights"]]
 
             for section in raw.get("sections", []):
                 section["sources"] = [
-                    s for s in section.get("sources", [])
+                    s for s in section.get("sources", section.get("Sources", []))
                     if isinstance(s, str) and s.startswith("http")
                 ]
 
