@@ -61,7 +61,7 @@ async def run_critic(state: AgentState)->dict:
     while (i<3):
         try:
             response = await client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 max_tokens=1000,
                 messages=[
                             {"role": "system", "content": prompt},

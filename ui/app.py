@@ -111,6 +111,7 @@ AGENTS = [
     ("planner", "planner"),
     ("search_and_rag", "searcher + rag"),
     ("extractor", "extractor"),
+    ("contradiction_agent", "contradiction detector"),
     ("code_agent", "code agent"),
     ("synthesiser", "synthesiser"),
     ("critic", "critic"),
@@ -152,6 +153,100 @@ def build_rail(done, current, log_lines):
     </div>"""
 
 
+def render_contradiction_graph(col, payload):
+    """Render insight nodes + contradiction edges as a networkx/matplotlib graph."""
+    edges_data = payload.get("contradiction_edges", [])
+    claims = payload.get("insight_claims", [])
+    if not edges_data or not claims:
+        return
+
+    try:
+        import networkx as nx
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+        import io
+    except ImportError:
+        with col:
+            st.warning("Install networkx + matplotlib to see the contradiction graph.")
+        return
+
+    involved = set()
+    for e in edges_data:
+        involved.add(e["a"])
+        involved.add(e["b"])
+
+    G = nx.Graph()
+    for idx in involved:
+        if idx < len(claims):
+            G.add_node(idx, claim=claims[idx])
+
+    for e in edges_data:
+        G.add_edge(e["a"], e["b"], severity=e["severity"], explanation=e["explanation"])
+
+    if len(G.nodes) == 0:
+        return
+
+    with col:
+        st.markdown('<h3 class="nx-h3">Contradiction Map</h3>', unsafe_allow_html=True)
+        st.caption(
+            f"**{len(edges_data)} contradiction(s)** detected across {len(involved)} insights. "
+            "Edge thickness = severity (thicker = stronger conflict)."
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 5))
+        fig.patch.set_facecolor("#f5f2ec")
+        ax.set_facecolor("#f5f2ec")
+
+        pos = nx.spring_layout(G, seed=42, k=1.8)
+
+        labels = {
+            n: (data["claim"][:55] + "\u2026" if len(data["claim"]) > 55 else data["claim"])
+            for n, data in G.nodes(data=True)
+        }
+
+        nx.draw_networkx_nodes(G, pos, ax=ax, node_color="#9c4a2b",
+                               node_size=900, alpha=0.85)
+        nx.draw_networkx_labels(G, pos, labels=labels, ax=ax,
+                                font_size=6.5, font_color="#f5f2ec",
+                                font_weight="bold")
+
+        for u, v, data in G.edges(data=True):
+            sev = data.get("severity", 0.5)
+            nx.draw_networkx_edges(
+                G, pos, edgelist=[(u, v)], ax=ax,
+                width=1.5 + sev * 6,
+                edge_color="#c0392b",
+                alpha=0.7,
+            )
+
+        ax.axis("off")
+        legend = mpatches.Patch(color="#c0392b",
+                                label="contradiction  (thicker = higher severity)")
+        ax.legend(handles=[legend], fontsize=7, loc="upper left",
+                  framealpha=0.6, facecolor="#faf8f3")
+
+        import io
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=130, bbox_inches="tight",
+                    facecolor=fig.get_facecolor())
+        buf.seek(0)
+        plt.close(fig)
+        st.image(buf, use_container_width=True)
+
+        with st.expander("Contradiction details"):
+            for e in edges_data:
+                ia, ib = e["a"], e["b"]
+                ca = (claims[ia][:80] + "\u2026") if ia < len(claims) else f"Insight {ia}"
+                cb = (claims[ib][:80] + "\u2026") if ib < len(claims) else f"Insight {ib}"
+                st.markdown(
+                    f"**Severity {e['severity']:.2f}** \u2014 {e['explanation']}  \n"
+                    f"- *A*: {ca}  \n"
+                    f"- *B*: {cb}"
+                )
+
+
 def render_report(col, payload):
     with col:
         st.markdown('<div class="nx-eyebrow">research report</div>', unsafe_allow_html=True)
@@ -171,16 +266,39 @@ def render_report(col, payload):
             st.markdown('<h3 class="nx-h3">Summary</h3>', unsafe_allow_html=True)
             st.markdown(payload["summary"])
 
+        chart_path = payload.get("chart_path")          # original OS path for file access
+        safe_chart_path = chart_path.replace("\\", "/") if chart_path else None
+        chart_shown = False
+
         for sec in payload.get("sections", []):
             st.markdown(f'<h3 class="nx-h3">{html.escape(sec.get("heading", ""))}</h3>',
                         unsafe_allow_html=True)
-            st.markdown(sec.get("body", ""))
+
+            body = sec.get("body", "")
+            # detect chart marker injected by the synthesiser
+            if safe_chart_path and f"[Chart available: {safe_chart_path}]" in body and not chart_shown:
+                body = body.replace(f"[Chart available: {safe_chart_path}]", "").strip()
+                st.markdown(body)
+                import os
+                if os.path.exists(chart_path):
+                    st.image(chart_path, caption="Generated quantitative chart", use_container_width=True)
+                    chart_shown = True
+            else:
+                st.markdown(body)
+
             srcs = sec.get("sources", [])
             if srcs:
                 links = " · ".join(
                     f'<a href="{s}">{s.split("//")[-1][:38]}</a>' for s in srcs
                 )
                 st.markdown(f'<div class="nx-src">{links}</div>', unsafe_allow_html=True)
+
+        # fallback: show chart after all sections if marker was never found in body
+        if chart_path and not chart_shown:
+            import os
+            if os.path.exists(chart_path):
+                st.markdown('<h3 class="nx-h3">Quantitative Analysis</h3>', unsafe_allow_html=True)
+                st.image(chart_path, caption="Generated quantitative chart", use_container_width=True)
 
         if not payload.get("summary") and not payload.get("sections"):
             st.warning("Report payload had no body.")
@@ -276,16 +394,22 @@ elif run_btn and query:
                         unsafe_allow_html=True,
                     )
                     status.empty()
-                    render_report(left, data.get("data") or {})
+                    report_payload = data.get("data") or {}
+                    render_report(left, report_payload)
+                    render_contradiction_graph(left, report_payload)
                     completed = True
                     break
 
                 if st_ in ("failed", "error"):
+                    completed = True   # stop the warning from overwriting this
                     status.markdown(
                         f'<div class="nx-status"><span class="k">failed</span> '
                         f'{html.escape(msg)}</div>',
                         unsafe_allow_html=True,
                     )
+                    with left:
+                        with st.expander("Error details"):
+                            st.code(msg)
                     break
 
         if not completed:

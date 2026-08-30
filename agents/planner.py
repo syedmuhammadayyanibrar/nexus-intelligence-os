@@ -50,14 +50,20 @@ async def run_planner(state:AgentState) -> dict:
     while i < 3:
         try:
             response = await client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 max_tokens=1000,
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": user_message}
                 ]
             )
-            text = response.choices[0].message.content
+            text = response.choices[0].message.content.strip()
+            if text.startswith("```"):
+                parts = text.split("```")
+                text = parts[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
             validated_plan = ResearchPlan.model_validate_json(text)
             break
         except (ValidationError , json.JSONDecodeError) as e:

@@ -41,13 +41,28 @@ async def run_synthesiser(state: AgentState) -> dict:
             f"Directly address and fix these weaknesses in this new version.\n"
         )
 
+    # inject chart reference so the LLM can cite it in the relevant section
+    code_result = state.get("code_result")
+    chart_block = ""
+    if code_result and getattr(code_result, "chart_path", None):
+        safe_path = code_result.chart_path.replace("\\", "/")
+        chart_block = (
+            f"\nA quantitative chart has been generated and saved to:\n"
+            f"  {safe_path}\n"
+            f"In the most relevant section body, include the sentence: "
+            f"'[Chart available: {safe_path}]' so the UI can display it.\n"
+        )
+    if code_result and getattr(code_result, "stdout", "").strip():
+        chart_block += f"\nCode execution result:\n{code_result.stdout.strip()}\n"
+
     user_message = (
         f"Original User Query: {original_query}\n\n"
         f"Extracted Insights Database:\n"
         f"========================================\n"
         f"{formatted}"
         f"========================================\n"
-        f"{feedback_block}\n"
+        f"{feedback_block}"
+        f"{chart_block}\n"
         f"Synthesize the research insights above into the final JSON report."
     )
 
@@ -80,7 +95,7 @@ STRICT RULES:
     while i < 3:
         try:
             response = await client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="openai/gpt-oss-20b",
                 max_tokens=6000,
                 messages=[
                     {"role": "system", "content": prompt},

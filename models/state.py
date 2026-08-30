@@ -1,18 +1,19 @@
-from typing import TypedDict , Literal , Optional ,List
+from typing import TypedDict, Literal, Optional, List
 from models.planner_models import ResearchPlan
-from models.agent_models import SearchResults, Insights, CritiqueResult, FinalReport , CodeResults , Analyst_task
-
+from models.agent_models import SearchResults, Insights, CritiqueResult, FinalReport, CodeResults, Analyst_task, ContradictionEdge
 
 class AgentState(TypedDict):
-    original_query :str
-    research_plan : Optional[ResearchPlan]
-    search_results : Optional[List[SearchResults]]
-    insights : Optional[List[Insights]]
-    critique : Optional[CritiqueResult]
-    final_report : Optional[FinalReport]
-    retry_count : int
-    approved : Optional[bool]
-    status : Literal["planning", "searching", "extracting","synthesising", "critiquing", "approved", "failed"]
-    error : Optional[str]
-    code_result : Optional[CodeResults]
-    analyst_task : Optional[Analyst_task]
+    original_query: str
+    research_plan: Optional[ResearchPlan]
+    search_results: Optional[List[SearchResults]]
+    insights: Optional[List[Insights]]
+    critique: Optional[CritiqueResult]
+    final_report: Optional[FinalReport]
+    retry_count: int
+    approved: Optional[bool]
+    status: Literal["planning", "searching", "extracting", "synthesising", "critiquing", "approved", "failed"]
+    error: Optional[str]
+    code_result: Optional[CodeResults]
+    analyst_task: Optional[Analyst_task]
+    rag_context: Optional[List[str]]
+    contradiction_edges: Optional[List[ContradictionEdge]]

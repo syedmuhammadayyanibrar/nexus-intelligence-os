@@ -75,7 +75,7 @@ def write_memory(state: AgentState)->dict:
 
     collection = client.get_or_create_collection("nexus_knowledge")
 
-    for i , insight in enumerate(state["insights"]):
+    for i , insight in enumerate(state["insights"] or []):
 
         collection.add(
 

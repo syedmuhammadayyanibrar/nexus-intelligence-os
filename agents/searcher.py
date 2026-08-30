@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import asyncio
 from tavily import AsyncTavilyClient
 from models.state import AgentState
-from models.agent_models import SearchResults
+from models.agent_models import SearchResults , QuickScan , DeepAnalysis
 from typing import List
 from models.planner_models import SubQuestion
 
@@ -27,16 +27,35 @@ async def run_searcher(state:AgentState)->dict:
             "status": "failed",
             "error": "Initialization Error: TAVILY_API_KEY is not set in the environment variables."
         }
+
+    # --- Resolve search config from analyst_task ---
+    analyst_task = state.get("analyst_task", None)
+    max_results = 5          # default
+    search_depth = "advanced"  # default
+    focus_areas: List[str] = []
+
+    if isinstance(analyst_task, QuickScan):
+        max_results = analyst_task.max_result
+        search_depth = "basic"
+    elif isinstance(analyst_task, DeepAnalysis):
+        max_results = 8
+        search_depth = "advanced"
+        focus_areas = analyst_task.focus
+
     tavily_client = AsyncTavilyClient()
 
     async def search_sub_questions(sub_q:SubQuestion)->List[SearchResults]:
-        combined = f"{state['original_query']} {sub_q.title}"
+        # For DeepAnalysis, append focus areas to the query to guide results
+        focus_suffix = " ".join(focus_areas)
+        search_terms = " ".join(sub_q.search_items)
+        
+        combined = f"{state['original_query']} {sub_q.title} {focus_suffix}".strip()
 
         try:
             response = await tavily_client.search(
                 query=combined,
-                search_depth="advanced",
-                max_results=5
+                search_depth=search_depth,
+                max_results=max_results
             )
             parsed_results = []
 
@@ -70,4 +89,3 @@ async def run_searcher(state:AgentState)->dict:
         "search_results" : flattened,
         "status":"searching"
     }
-

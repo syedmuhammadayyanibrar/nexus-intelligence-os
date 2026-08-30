@@ -29,10 +29,11 @@ async def run_extractor(state:AgentState)->dict:
         formatted = ""
         for i, all_result in enumerate(chunk):
             formatted += f"source {i+1}: {all_result.title}\n"
+            formatted += f"URL: {all_result.url}\n"
             formatted += f"Content: {all_result.snippet}\n\n"
         user_message = f"Research topic: {sub_question_title}\n\nSources:\n{formatted}\n\nExtract insights as a JSON array."
 
-        prompt =prompt = """you are a research assistant, return only a valid JSON array.
+        prompt = """you are a research assistant, return only a valid JSON array.
                             Each insight must follow this exact shape:
                             [
                             {
@@ -47,22 +48,28 @@ async def run_extractor(state:AgentState)->dict:
                             - confidence must be a float between 0.0 and 1.0
                             - if confidence is above 0.8, you MUST provide at least 2 source URLs
                             - if you only have 1 source, set confidence to 0.8 or below
-                            - source must only contain valid URLs starting with https://
+                            - source must ONLY contain the exact URLs provided in the "Sources:" text above. Do NOT invent or hallucinate URLs.
                             - return only the JSON array, no markdown, no explanation
                             """
         i = 0
         while(i<3):
             try:
                 response  =await client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
+                    model="openai/gpt-oss-20b",
                         max_tokens=1000,
                         messages=[
                             {"role": "system", "content": prompt},
                             {"role": "user", "content": user_message}
                         ]
                 )
-                text = response.choices[0].message.content
+                text = response.choices[0].message.content.strip()
                 print(f"Extractor raw response:\n{text}\n")
+                if text.startswith("```"):
+                    parts = text.split("```")
+                    text = parts[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                    text = text.strip()
                 raw_list = json.loads(text)
                 insights = [Insights.model_validate(item) for item in raw_list]
                 return insights
@@ -81,13 +88,11 @@ async def run_extractor(state:AgentState)->dict:
                     }
                 
 
-    tasks = [
-        extract_from_chunk(chunk[i], state["research_plan"].sub_questions[i].title)
-        for i in range(len(chunk))
-    ]
-
-
-    results = await asyncio.gather(*tasks)
+    results = []
+    for i in range(len(chunk)):
+        res = await extract_from_chunk(chunk[i], state["research_plan"].sub_questions[i].title)
+        results.append(res)
+        await asyncio.sleep(2)  # breathing room for the free tier API limits
     flattened = [
     insight 
     for sublist in results 

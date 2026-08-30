@@ -30,6 +30,7 @@ NODE_MESSAGES = {
     "planner": "Breaking the question into sub-questions",
     "search_and_rag": "Searching the web and querying the knowledge base",
     "extractor": "Extracting and validating key insights from sources",
+    "contradiction_agent": "Scanning insights for conflicting claims",
     "code_agent": "Checking whether calculations are needed",
     "synthesiser": "Writing the structured research report",
     "critic": "Grading report quality and deciding on a rewrite",
@@ -49,10 +50,10 @@ async def start_research(request: ResearchRequest):
     return {"job_id": job_id}
 
 
-def serialize_report(report):
+def serialize_report(report, code_result=None, contradiction_edges=None):
     if report is None:
         return None
-    return {
+    data = {
         "title": report.title,
         "summary": report.summary,
         "overall_confidence": report.overall_confidence,
@@ -66,6 +67,22 @@ def serialize_report(report):
             for s in report.sections
         ],
     }
+    if code_result and getattr(code_result, "chart_path", None):
+        data["chart_path"] = code_result.chart_path
+    if contradiction_edges:
+        data["contradiction_edges"] = [
+            {
+                "a": e.insight_a_index,
+                "b": e.insight_b_index,
+                "severity": e.severity,
+                "explanation": e.explanation,
+            }
+            for e in contradiction_edges
+        ]
+        # also embed insight claims for node labels
+        if report.insights:
+            data["insight_claims"] = [ins.claim for ins in report.insights]
+    return data
 
 
 async def run_pipeline(query: str, queue: asyncio.Queue):
@@ -84,6 +101,8 @@ async def run_pipeline(query: str, queue: asyncio.Queue):
         "approved": None,
         "status": "planning",
         "error": None,
+        "analyst_task": None,
+        "contradiction_edges": None,
     }
 
     await queue.put(AgentProgressEvent(
@@ -94,6 +113,8 @@ async def run_pipeline(query: str, queue: asyncio.Queue):
 
     final_report = None
     error_msg = None
+    final_code_result = None
+    final_contradiction_edges = []
 
     try:
         # astream yields {node_name: partial_update} after each node runs,
@@ -106,6 +127,12 @@ async def run_pipeline(query: str, queue: asyncio.Queue):
                     if update.get("final_report") is not None:
                         final_report = update["final_report"]
 
+                    if update.get("code_result") is not None:
+                        final_code_result = update["code_result"]
+
+                    if update.get("contradiction_edges") is not None:
+                        final_contradiction_edges = update["contradiction_edges"]
+
                     critique = update.get("critique")
                     if critique is not None:
                         data = {
@@ -116,7 +143,7 @@ async def run_pipeline(query: str, queue: asyncio.Queue):
                             "feedback": critique.feedback,
                         }
 
-                    if update.get("status") == "failed":
+                    if update.get("status") == "failed" and not error_msg:
                         error_msg = update.get("error", "unknown error")
 
                 await queue.put(AgentProgressEvent(
@@ -137,7 +164,7 @@ async def run_pipeline(query: str, queue: asyncio.Queue):
                 agent="system",
                 status="completed",
                 message="Research complete",
-                data=serialize_report(final_report),
+                data=serialize_report(final_report, final_code_result, final_contradiction_edges),
             ).model_dump())
 
     except Exception as e:

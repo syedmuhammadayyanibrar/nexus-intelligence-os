@@ -1,5 +1,5 @@
 from pydantic import AnyHttpUrl , BaseModel ,Field , field_validator , model_validator , computed_field
-from typing import Literal , List , Annotated , Union
+from typing import Literal , List , Annotated , Union , Optional
 
 
 class SearchResults(BaseModel):
@@ -75,3 +75,11 @@ class CodeResults(BaseModel):
     stderr : str
     success : bool
     execution_time_ms : int = Field(ge=0)
+    chart_path: Optional[str] = None
+
+
+class ContradictionEdge(BaseModel):
+    insight_a_index: int
+    insight_b_index: int
+    severity: float = Field(ge=0, le=1)
+    explanation: str

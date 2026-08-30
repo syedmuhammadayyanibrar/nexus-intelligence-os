@@ -11,6 +11,7 @@ from agents.planner import run_planner
 from agents.searcher import run_searcher
 from agents.extractor import run_extractor
 from agents.code_agent import code_agent
+from agents.contradiction_agent import run_contradiction_agent
 from agents.synthesiser import run_synthesiser
 from agents.critic import run_critic
 from agents.memory import read_memory , write_memory
@@ -26,19 +27,12 @@ async def search_and_rag(state: AgentState) -> dict:
         **rag_result
     }
 
-def should_continue(state : AgentState)->str:
-    if state["status"]=="approved":
-        return "end"
-    if state.get("retry_count",0)>=3:
-        return "end"
-    return "planner"
-
-
 graph = StateGraph(AgentState)
 graph.add_node("read_memory", read_memory)
 graph.add_node("planner", run_planner)
 graph.add_node("search_and_rag", search_and_rag)
 graph.add_node("extractor", run_extractor)
+graph.add_node("contradiction_agent", run_contradiction_agent)
 graph.add_node("code_agent", code_agent)
 graph.add_node("synthesiser", run_synthesiser)
 graph.add_node("critic", run_critic)
@@ -47,16 +41,28 @@ graph.add_node("write_memory", write_memory)
 graph.add_edge("read_memory", "planner")
 graph.add_edge("planner", "search_and_rag")
 graph.add_edge("search_and_rag", "extractor")
-graph.add_edge("extractor", "code_agent")
+graph.add_edge("extractor", "contradiction_agent")
+graph.add_edge("contradiction_agent", "code_agent")
 graph.add_edge("code_agent", "synthesiser")
-graph.add_edge("synthesiser", "critic")
+def after_synthesiser(state: AgentState) -> str:
+    if state.get("status") == "failed":
+        return "write_memory"
+    return "critic"
+
+graph.add_conditional_edges(
+    "synthesiser",
+    after_synthesiser,
+    {"critic": "critic", "write_memory": "write_memory"}
+)
 
 def should_continue(state: AgentState) -> str:
     if state["status"] == "approved":
         return "write_memory"
     if state.get("retry_count", 0) >= 3:
         return "write_memory"
-    return "planner"
+    if state["status"] in ("critiquing",):
+        return "planner"
+    return "write_memory"
 
 graph.add_conditional_edges(
     "critic",
