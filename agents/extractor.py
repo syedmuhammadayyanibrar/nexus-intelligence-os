@@ -70,12 +70,14 @@ async def run_extractor(state:AgentState)->dict:
                     text = match.group(0)
                 else:
                     raise json.JSONDecodeError("No JSON array found", text, 0)
-                import json_repair`n                raw_list = json_repair.loads(text)
+                import json_repair
+                raw_list = json_repair.loads(text)
                 insights = [Insights.model_validate(item) for item in raw_list]
                 return insights
             except RateLimitError:
                 print("Rate limit hit, waiting 15 seconds...")
                 await asyncio.sleep(15)
+                i += 1
                 continue    
 
                 
@@ -90,7 +92,7 @@ async def run_extractor(state:AgentState)->dict:
 
     results = []
     for i in range(len(chunk)):
-        res = await extract_from_chunk(chunk[i], state["research_plan"].sub_questions[i].title)
+        res = await extract_from_chunk(chunk[i], state["research_plan"].sub_questions[i % len(state["research_plan"].sub_questions)].title)
         results.append(res)
         await asyncio.sleep(2)  # breathing room for the free tier API limits
     flattened = [

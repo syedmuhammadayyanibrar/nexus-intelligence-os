@@ -75,7 +75,12 @@ async def run_critic(state: AgentState)->dict:
             if match:
                 text = match.group(0)
 
-            import json_repair`n            raw = json_repair.loads(text)
+            import json_repair
+            raw = json_repair.loads(text)
+            if isinstance(raw, list) and len(raw) > 0:
+                raw = raw[0]
+            if not isinstance(raw, dict):
+                raw = {}
             validated_critique = CritiqueResult.model_validate(raw)
             if validated_critique.passed:
                 return {
@@ -85,7 +90,7 @@ async def run_critic(state: AgentState)->dict:
             else:
                 return {
                     "critique": validated_critique,
-                    "retry_count":state['retry_count']+1,
+                    "retry_count": state.get('retry_count', 0) + 1,
                     "status":"critiquing"
                 }
         except RateLimitError:

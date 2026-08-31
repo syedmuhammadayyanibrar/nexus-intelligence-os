@@ -72,7 +72,7 @@ async def code_agent(state: AgentState) -> dict:
         try:
             response = await client.chat.completions.create(
                 model="qwen/qwen3.8-27b",
-                max_tokens=600,
+                max_tokens=1500,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
@@ -85,7 +85,12 @@ async def code_agent(state: AgentState) -> dict:
             if match:
                 raw_text = match.group(0)
 
-            import json_repair`n            parsed = json_repair.loads(raw_text)
+            import json_repair
+            parsed = json_repair.loads(raw_text)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                parsed = parsed[0]
+            if not isinstance(parsed, dict):
+                parsed = {}
 
             if not parsed.get("needs_code"):
                 return {"code_result": None, "status": "extracting"}

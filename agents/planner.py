@@ -62,7 +62,13 @@ async def run_planner(state:AgentState) -> dict:
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
                 text = match.group(0)
-            import json_repair`n            raw = json_repair.loads(text)`n            validated_plan = ResearchPlan.model_validate(raw)
+            import json_repair
+            raw = json_repair.loads(text)
+            if isinstance(raw, list) and len(raw) > 0:
+                raw = raw[0]
+            if not isinstance(raw, dict):
+                raw = {}
+            validated_plan = ResearchPlan.model_validate(raw)
             break
         except (ValidationError , json.JSONDecodeError) as e:
             i += 1

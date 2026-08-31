@@ -16,11 +16,12 @@ async def run_rag(state: AgentState) -> dict:
         if collection.count() == 0:
             return {"rag_context": [], "status": state["status"]}
 
-        if not state.get("research_plan"):
-            return {"rag_context": [], "status": state["status"]}
+        if "research_plan" not in state or not state.get("research_plan"):
+            return {"status": "failed", "error": "No research plan available"}
+        plan = state["research_plan"]
 
         rag_context = []
-        for sub_q in state["research_plan"].sub_questions:
+        for sub_q in plan.sub_questions:
             results = collection.query(
                 query_texts=[sub_q.title],
                 n_results=3

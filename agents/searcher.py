@@ -15,6 +15,8 @@ from models.planner_models import SubQuestion
 load_dotenv()
 
 async def run_searcher(state:AgentState)->dict:
+    if "research_plan" not in state or not state.get("research_plan"):
+        return {"status": "failed", "error": "No research plan available"}
     plan = state["research_plan"]
 
     if plan is None:

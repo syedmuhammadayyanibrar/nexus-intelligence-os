@@ -59,8 +59,16 @@ async def _check_pair(ida: int, claim_a: str, idb: int, claim_b: str) -> Contrad
                 ],
             )
             raw = resp.choices[0].message.content.strip()
-            import re`n            match = re.search(r"\{.*\}", raw, re.DOTALL)`n            if match:`n                raw = match.group(0)
-            import json_repair`n            d = json_repair.loads(raw)
+            import re
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if match:
+                raw = match.group(0)
+            import json_repair
+            d = json_repair.loads(raw)
+            if isinstance(d, list) and len(d) > 0:
+                d = d[0]
+            if not isinstance(d, dict):
+                d = {}
             if not d.get("contradicts"):
                 return None
             edge = ContradictionEdge(
