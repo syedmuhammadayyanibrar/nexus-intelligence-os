@@ -1,6 +1,6 @@
-# NEXUS Intelligence OS
+# NEXUS 
 
-NEXUS Intelligence OS is an autonomous, multi-agent research pipeline that orchestrates a team of specialized AI agents to conduct deep research, extract factual insights, detect logical contradictions, generate data visualizations, and synthesize comprehensive reports.
+NEXUS is an autonomous, multi-agent research pipeline that orchestrates a team of specialized AI agents to conduct deep research, extract factual insights, detect logical contradictions, generate data visualizations, and synthesize comprehensive reports.
 
 Built with LangGraph and powered by Groq, NEXUS ensures high-quality, hallucination-free research through strict schema validation, automated code execution, and a reflection loop that forces the system to revise its work until it meets a high quality threshold.
 
