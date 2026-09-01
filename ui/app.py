@@ -304,6 +304,23 @@ def render_report(col, payload):
             st.warning("Report payload had no body.")
             st.json(payload)
 
+        # Generate markdown for download
+        md_text = f"# {payload.get('title', 'NEXUS Report')}\n\n"
+        if payload.get("summary"):
+            md_text += f"### Summary\n{payload['summary']}\n\n"
+        for sec in payload.get("sections", []):
+            md_text += f"### {sec.get('heading', '')}\n{sec.get('body', '')}\n\n"
+            if sec.get("sources"):
+                md_text += "**Sources:**\n" + "\n".join([f"- {s}" for s in sec["sources"]]) + "\n\n"
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button(
+            label="📥 Download Report as Markdown",
+            data=md_text,
+            file_name="NEXUS_Report.md",
+            mime="text/markdown"
+        )
+
 
 # ---------------------------------------------------------------- layout
 st.markdown(
